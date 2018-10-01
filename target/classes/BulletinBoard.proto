@@ -1,0 +1,32 @@
+syntax = "proto3";
+package com.bulletinboard;
+option java_multiple_files = true;
+
+// Implement Proto File Here
+service BulletinBoard{
+    rpc GetPost(Title) returns (Post) {}
+    rpc MakePost(Post) returns (Response) {}
+    rpc DeletePost(Title) returns (Response) {}
+    rpc ListPosts(Empty) returns (Posts) {}
+}
+
+message Empty {
+
+}
+
+message Posts{
+    repeated Post posts = 1;
+}
+
+message Title {
+    string title = 1;
+}
+
+message Post {
+    string title = 1;
+    string body = 2;
+}
+
+message Response {
+    string res = 1;
+}
