@@ -4,17 +4,20 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.StringTokenizer;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class BulletinBoardClient {
 	private static final Logger logger = Logger.getLogger(BulletinBoardClient.class.getName());
 
 	private final ManagedChannel channel;
 	private final BulletinBoardGrpc.BulletinBoardBlockingStub blockingStub;
+    private Pattern tokenizer = Pattern.compile("([^\"]\\S*|\".+?\")\\s*");
 
 	public BulletinBoardClient(String host, int port){
 		this(ManagedChannelBuilder.forAddress(host, port).usePlaintext());
@@ -26,9 +29,22 @@ public class BulletinBoardClient {
 	public void shutdown() throws InterruptedException {
 		channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
 	}
-	public void getPost(String title){
-        Title t = Title.newBuilder().setTitle(title).build();
+	private List<String> getTokens(String command){
+        List<String> tokens = new ArrayList<String>();
+        Matcher m = tokenizer.matcher(command);
+        while(m.find()){
+            tokens.add(m.group(1).replace("\"",""));
+        }
+        return tokens;
+    }
+	public void getPost(String command){
         Post p;
+        List<String> tokens = getTokens(command);
+        if(tokens.size() < 2){
+            System.out.println("Please enter title of post to get in quotes");
+            return;
+        }
+        Title t = Title.newBuilder().setTitle(tokens.get(1)).build();
         try {
             p = blockingStub.getPost(t);
         } catch (StatusRuntimeException e) {
@@ -42,12 +58,13 @@ public class BulletinBoardClient {
             System.out.println("No such post found");
         }
     }
-    public void makePost(StringTokenizer st){
-	    String body = "", title;
-	    title = st.nextToken();
-	    while(st.hasMoreTokens()){
-            body += st.nextToken();
+    public void makePost(String command){
+        List<String> tokens = getTokens(command);
+        if(tokens.size() < 3){
+            System.out.println("Please provide title and body in quotes.");
+            return;
         }
+	    String body = tokens.get(2), title = tokens.get(1);
         Post newPost = Post.newBuilder().setTitle(title).setBody(body).build();
         Response r;
         try {
@@ -58,16 +75,21 @@ public class BulletinBoardClient {
         }
         System.out.println(r.getRes());
     }
-    public void deletePost(String title){
-        Title t = Title.newBuilder().setTitle(title).build();
-        Response r;
+    public void deletePost(String command){
+        Response d;
+        List<String> tokens = getTokens(command);
+        if(tokens.size() < 2){
+            System.out.println("Please enter title of post to delete in quotes");
+            return;
+        }
+        Title t = Title.newBuilder().setTitle(tokens.get(1)).build();
         try {
-            r = blockingStub.deletePost(t);
+            d = blockingStub.deletePost(t);
         } catch (StatusRuntimeException e) {
             logger.warning("RPC failed: "+ e.getStatus());
             return;
         }
-        System.out.println(r.getRes());
+        System.out.println(d.getRes());
     }
     public void listPosts(){
         Empty e = Empty.newBuilder().build();
@@ -89,27 +111,27 @@ public class BulletinBoardClient {
     }
 	public static void main(String[] args) throws Exception{
 		BulletinBoardClient client = new BulletinBoardClient("localhost", 8980);
-        while(true){
-            Scanner inputReader = new Scanner(System.in);
-            System.out.print("Input a command: ");
+        Scanner inputReader = new Scanner(System.in);
+		while(true){
+            System.out.print("Input a command (type quit to exit): ");
             String command = inputReader.nextLine();
             if(command.startsWith("post")){
-                StringTokenizer st = new StringTokenizer(command);
-                st.nextToken();
-                client.makePost(st);
+                client.makePost(command);
             }else if(command.startsWith("get")){
-                String[] getDetails = command.split(" ");
-                client.getPost(getDetails[1]);
+                client.getPost(command);
             }else if(command.startsWith("delete")){
-                String[] delDetails = command.split(" ");
-                client.deletePost(delDetails[1]);
+                client.deletePost(command);
             }else if(command.startsWith("list")){
                 client.listPosts();
-            }else{
-                System.out.println("Command not recognized.");
+            }else if(command.startsWith("quit")){
+                System.out.println("Client exited.");
                 break;
             }
+            else{
+                System.out.println("Command not recognized.");
+            }
         }
+        inputReader.close();
         client.shutdown();
 	}
 

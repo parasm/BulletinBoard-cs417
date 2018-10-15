@@ -4,7 +4,6 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.logging.Logger;
 
 public class BulletinBoardServer {
